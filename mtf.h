@@ -33,9 +33,9 @@ double calculateMTFbyContrast(std::vector<uint8_t> &linePixels);
 
 /**
  * @brief   Generate image containing info about MTF at every pixel.
- * @param   std::string name    Filename to open
+ * @param   cv::Mat tg          Image to process
  * @param   int cell            Cell size in pixels
- * @param   bool showDebugInfo  If @c true, display intermediate results
+ * @param   bool showDebugInfo  If <b>true</b>, display intermediate results
  *
  */
-cv::Mat processTarget(std::string name, int cell, bool showDebugInfo);
+cv::Mat processTarget(cv::Mat tg, int cell, bool showDebugInfo);
