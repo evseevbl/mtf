@@ -106,3 +106,54 @@ cv::Mat processTarget(cv::Mat tg, int cell, bool showDebugInfo = true) {
     }
     return blend;
 }
+
+
+cv::Mat applyDFT(cv::Mat img) {
+    cv::Mat padded;
+    //expand input image to optimal size
+    int m = cv::getOptimalDFTSize(img.rows);
+    int n = cv::getOptimalDFTSize(img.cols);
+    // on the border add zero values
+    copyMakeBorder(img, padded, 0, m - img.rows, 0, n - img.cols, cv::BORDER_CONSTANT, cv::Scalar::all(0));
+
+    cv::Mat planes[] = {cv::Mat_<float>(padded), cv::Mat::zeros(padded.size(), CV_32F)};
+    cv::Mat complexI;
+    // Add to the expanded another plane with zeros
+    cv::merge(planes, 2, complexI);
+
+    // this way the result may fit in the source matrix
+    cv::dft(complexI, complexI);
+
+    // compute the magnitude and switch to logarithmic scale
+    // => log(1 + sqrt(Re(DFT(img))^2 + Im(DFT(img))^2))
+    // planes[0] = Re(DFT(img), planes[1] = Im(DFT(img))
+    split(complexI, planes);
+    // planes[0] = magnitude
+    magnitude(planes[0], planes[1], planes[0]);
+    cv::Mat magI = planes[0];
+
+    // switch to logarithmic scale
+    magI += cv::Scalar::all(1);
+    log(magI, magI);
+
+    // crop the spectrum, if it has an odd number of rows or columns
+    magI = magI(cv::Rect(0, 0, magI.cols & -2, magI.rows & -2));
+
+    // rearrange the quadrants of Fourier image so that the origin is at the image center
+    int cx = magI.cols / 2;
+    int cy = magI.rows / 2;
+    cv::Mat q0(magI, cv::Rect(0, 0, cx, cy));
+    cv::Mat q1(magI, cv::Rect(cx, 0, cx, cy));
+    cv::Mat q2(magI, cv::Rect(0, cy, cx, cy));
+    cv::Mat q3(magI, cv::Rect(cx, cy, cx, cy));
+    cv::Mat tmp;
+    q0.copyTo(tmp);
+    q3.copyTo(q0);
+    tmp.copyTo(q3);
+    q1.copyTo(tmp);
+    q2.copyTo(q1);
+    tmp.copyTo(q2);
+    normalize(magI, magI, 0, 1, CV_MINMAX);
+
+    return magI;
+}

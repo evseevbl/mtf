@@ -39,3 +39,11 @@ double calculateMTFbyContrast(std::vector<uint8_t> &linePixels);
  *
  */
 cv::Mat processTarget(cv::Mat tg, int cell, bool showDebugInfo);
+
+
+/**
+ * @brief   Apply discrete Fourier transformation
+ * @param   cv::Mat img          Image to process
+ *
+ */
+cv::Mat applyDFT(cv::Mat img);
