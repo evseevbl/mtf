@@ -2,6 +2,7 @@
 #include <iomanip>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
+#include <numeric>
 
 cv::Mat getROI(cv::Mat img, int x, int y, int cell) {
     return img(cv::Range(x, x + cell), cv::Range(y, y + cell));
@@ -16,30 +17,42 @@ std::pair<cv::Point, cv::Point> getBrightestDarkest(cv::Mat roi) {
     return std::make_pair(mx, mn);
 };
 
-double calculateMTFbyContrast(std::vector<uint8_t> &vec) {
-    double mx = *std::max_element(vec.begin(), vec.end());
-    double mn = *std::min_element(vec.begin(), vec.end());
+double calculateMTFbyContrast(std::vector<uint8_t> &linePixels) {
+    double mx = *std::max_element(linePixels.begin(), linePixels.end());
+    double mn = *std::min_element(linePixels.begin(), linePixels.end());
     return (mx - mn) / (mx + mn);
 }
 
-double calculateMTFbyRange(std::vector<uint8_t> &vec) {
-    double th = 0.5;
-    std::sort(vec.begin(), vec.end());
-    double minval = *vec.begin() * (1 + th);
-    double maxval = *(vec.end() - 1) * (1 - th);
+double calculateMTFbyRange(std::vector<uint8_t> &linePixels) {
+    double th = 0.1;
+    int borderThreshold = 1;
+    std::sort(linePixels.begin(), linePixels.end());
+    double minval = *linePixels.begin() * (1 + th);
+    double maxval = *(linePixels.end() - 1) * (1 - th);
     int cnt = 0;
-    for (size_t i = 0; i != vec.size(); ++i) {
-        if (maxval > vec[i] && vec[i] > minval) {
+    for (size_t i = 0; i != linePixels.size(); ++i) {
+        if (maxval > linePixels[i] && linePixels[i] > minval) {
             ++cnt;
         }
     }
-    return (1.0 * cnt / vec.size());
+    return std::min(1.0, 1.0 * (cnt + borderThreshold) / linePixels.size());
 }
 
-int main() {
-    auto tg = cv::imread("img/tg01.jpg", cv::IMREAD_COLOR);
-    auto tg_blur = cv::imread("img/tg01_blur.jpg", cv::IMREAD_COLOR);
-    int cell = 20;
+double calculateMTFbyPercent(std::vector<uint8_t> &linePixels) {
+    std::sort(linePixels.begin(), linePixels.end());
+    std::cout << "size=" << linePixels.size();
+    double pc = 0.25;
+    int cap = linePixels.size() * pc;
+    double mn = std::accumulate(linePixels.begin(), linePixels.begin() + cap, 0) / linePixels.size();
+    double mx = std::accumulate(linePixels.end() - cap, linePixels.end(), 0) / linePixels.size();
+    std::cout << "mn=" << mn << "mx=" << mx << std::endl;
+    return (mx - mn) / (mx + mn);
+}
+
+int processTarget(std::string name, int cell) {
+    std::string ext = ".jpg";
+    auto tg = cv::imread("img/" + name + ext, cv::IMREAD_COLOR);
+    auto tg_blur = cv::imread("img/" + name + "_blur" + ext, cv::IMREAD_COLOR);
     int rows = tg.rows / cell;
     int cols = tg.cols / cell;
     double val;
@@ -57,7 +70,7 @@ int main() {
             cv::Point mn = ret.second;
             std::vector<cv::Point> linePixels;
             std::vector<uint8_t> vec;
-            cv::line(roi, mx, mn, cv::Scalar(255, 255, 0));
+            cv::line(roi, mx, mn, cv::Scalar(255 * ((i + j) % 2), 0, 255));
             //cv::LineIterator li(roi, mx, mn);
             for (cv::LineIterator li(roi, mx, mn); li.pos() != mn; ++li) {
                 linePixels.push_back(li.pos());
@@ -65,19 +78,33 @@ int main() {
             }
             val = calculateMTFbyContrast(vec);
             mtf_c.at<uint8_t>(i, j) = static_cast<uint8_t >(val * 255);
-            val = calculateMTFbyRange(vec);
+            val = calculateMTFbyPercent(vec);
             mtf_r.at<uint8_t>(i, j) = static_cast<uint8_t >(val * 255);
         }
     }
-    //*/
+    //*
+    auto blurSize = cv::Size(3, 3);
+    cv::Mat mtf_cr, mtf_pr;
+    cv::blur(mtf_c, mtf_c, blurSize, cv::Point(-1, -1));
+    cv::blur(mtf_r, mtf_r, blurSize, cv::Point(-1, -1));
+    cv::resize(mtf_c, mtf_cr, tg.size(), cv::INTER_MAX);
+    cv::resize(mtf_r, mtf_pr, tg.size(), cv::INTER_CUBIC);
+    cv::Mat blend;
+    double alpla = 0.7, beta = 0.3;
+    cv::addWeighted(mtf_cr, alpla, mtf_pr, beta, 0, blend);
+
     cv::imshow("tg", tg);
     cv::imshow("tg_blur", tg_blur);
     cv::imshow("roi", roi);
-    cv::Mat mtf_cr, mtf_rr;
-    cv::resize(mtf_c, mtf_cr, tg.size());
-    cv::resize(mtf_r, mtf_rr, tg.size());
-    cv::imshow("mtf_c", mtf_cr);
-    cv::imshow("mtf_r", mtf_rr);
+    cv::imshow("mtf_c", mtf_c);
+    cv::imshow("mtf_cr", mtf_cr);
+    cv::imshow("mtf_pr", mtf_pr);
+    cv::imshow("blend", blend);
     cv::waitKey(0);
+    return 0;
+}
+
+int main() {
+    processTarget("tg01", 20);
     return 0;
 }
