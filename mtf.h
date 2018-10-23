@@ -3,6 +3,16 @@
 #include <vector>
 #include <opencv2/core.hpp>
 
+struct LineData {
+    LineData(int y2);
+
+    int x1;
+    int y1;
+    int x2;
+    int y2;
+    cv::Mat mat;
+    LineData(cv::Mat _mat, int _x1, int _y1, int _x2, int _y2) : x1(_x1), y1(_y1), x2(_x2), y2(_y2), mat(_mat) {}
+};
 
 /**
  * @brief   Calculate MTF at point.
@@ -38,7 +48,9 @@ double calculateMTFbyContrast(std::vector<uint8_t> &linePixels);
  * @param   bool showDebugInfo  If <b>true</b>, display intermediate results
  *
  */
-cv::Mat processTarget(cv::Mat tg, int cell, bool showDebugInfo);
+cv::Mat processTargetCheckers(cv::Mat tg, int cell, bool showDebugInfo);
+
+cv::Mat processTargetStar(cv::Mat tg, int step, bool showDebugInfo);
 
 
 /**
@@ -47,3 +59,9 @@ cv::Mat processTarget(cv::Mat tg, int cell, bool showDebugInfo);
  *
  */
 cv::Mat applyDFT(cv::Mat img);
+
+void processLine(cv::Mat tg, int i, int j, int cell, int x, int y, bool showDebugInfo, double noise);
+
+double getNoise(cv::Mat mat);
+
+cv::Mat getROI(cv::Mat img, int x, int y, int cell);
